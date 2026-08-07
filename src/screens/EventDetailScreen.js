@@ -16,6 +16,7 @@ import QRCode from 'react-native-qrcode-svg';
 import * as Calendar from 'expo-calendar';
 
 import { FavoritesContext } from '../context/FavoritesContext';
+import { scheduleEventReminder } from '../utils/notifications';
 
 // --- THEME COLOR PALETTE ---
 const THEME = {
@@ -53,12 +54,12 @@ export default function EventDetailScreen({ route, navigation }) {
   const cityName = venue?.city?.name || '';
   const countryName = venue?.country?.name || '';
 
-  // --- TAKVİME EKLEME FONKSİYONU (Expo Calendar) ---
+  // --- TAKVİME EKLEME FONKSİYONU ---
   const handleAddToCalendar = async () => {
     try {
       const { status } = await Calendar.requestCalendarPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Calendar permission is required to save events.');
+        Alert.alert('Permission Required', 'Calendar permission is required.');
         return;
       }
 
@@ -72,7 +73,7 @@ export default function EventDetailScreen({ route, navigation }) {
       }
 
       const startDate = new Date(`${eventDate}T${eventTime || '10:00:00'}`);
-      const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000); // 2 saatlik etkinlik
+      const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
 
       await Calendar.createEventAsync(defaultCalendar.id, {
         title: eventName,
@@ -151,9 +152,8 @@ export default function EventDetailScreen({ route, navigation }) {
             </View>
           </View>
 
-          {/* Müfredat Aksiyon Butonları (QR Code & Takvime Ekleme) */}
+          {/* Üst Sıra Aksiyon Butonları (QR Code & Takvime Ekleme) */}
           <View style={styles.actionButtonsContainer}>
-            {/* QR Pass Göster */}
             <TouchableOpacity
               style={styles.qrButton}
               onPress={() => setQrModalVisible(true)}
@@ -162,7 +162,6 @@ export default function EventDetailScreen({ route, navigation }) {
               <Text style={styles.buttonText}>QR Pass</Text>
             </TouchableOpacity>
 
-            {/* Takvime Ekle */}
             <TouchableOpacity
               style={styles.calendarButton}
               onPress={handleAddToCalendar}
@@ -171,6 +170,16 @@ export default function EventDetailScreen({ route, navigation }) {
               <Text style={styles.buttonText}>Add to Calendar</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Alt Sıra: Real Event Reminder (Hatırlatıcı) Butonu */}
+          <TouchableOpacity
+            style={styles.reminderButton}
+            onPress={() => scheduleEventReminder(event)}
+          >
+            <Ionicons name="notifications-outline" size={18} color={THEME.white} />
+            <Text style={styles.buttonText}>Set Event Reminder</Text>
+          </TouchableOpacity>
+
         </View>
 
       </ScrollView>
@@ -197,7 +206,6 @@ export default function EventDetailScreen({ route, navigation }) {
               {eventName}
             </Text>
 
-            {/* QR KOD BİLEŞENİ */}
             <View style={styles.qrContainer}>
               <QRCode
                 value={JSON.stringify({
@@ -308,6 +316,7 @@ const styles = StyleSheet.create({
   actionButtonsContainer: {
     flexDirection: 'row',
     marginTop: 10,
+    marginBottom: 8,
   },
   qrButton: {
     flex: 1,
@@ -329,13 +338,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginLeft: 6,
   },
+  reminderButton: {
+    backgroundColor: THEME.secondary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 4,
+  },
   buttonText: {
     color: THEME.white,
     fontWeight: 'bold',
     marginLeft: 6,
     fontSize: 13,
   },
-  // MODAL STİLLERİ
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
