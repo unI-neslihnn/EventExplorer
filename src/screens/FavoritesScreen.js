@@ -73,7 +73,7 @@ export default function FavoritesScreen({ navigation }) {
         
         {/* Header Section */}
         <View style={styles.header}>
-          <Text style={styles.title}>❤️ Saved Events ❤️</Text>
+          <Text style={styles.title}>Saved Events</Text>
         </View>
 
         {favorites.length === 0 ? (

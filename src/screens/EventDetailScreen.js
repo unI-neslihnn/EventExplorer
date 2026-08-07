@@ -1,5 +1,5 @@
 // src/screens/EventDetailScreen.js
-import React, { useContext } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,9 +7,13 @@ import {
   Image,
   ScrollView,
   TouchableOpacity,
+  Modal,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import QRCode from 'react-native-qrcode-svg';
+import * as Calendar from 'expo-calendar';
 
 import { FavoritesContext } from '../context/FavoritesContext';
 
@@ -18,7 +22,6 @@ const THEME = {
   primary: '#0C5E8A',     // Inkwell
   secondary: '#5D9CBD',   // Fresh Water
   accent: '#798C5E',      // Nourish
-  border: '#798C5E',      
   bgLightGreen: '#EFEFE6',// Soft Background
   white: '#FFFFFF',
   textDark: '#2D3436',
@@ -26,97 +29,195 @@ const THEME = {
 
 export default function EventDetailScreen({ route, navigation }) {
   const { event } = route.params;
-  const { addFavorite, removeFavorite, isFavorite } = useContext(FavoritesContext);
-  const favorited = isFavorite(event.id);
+  const { isFavorite, addFavorite, removeFavorite } = useContext(FavoritesContext);
+
+  const [qrModalVisible, setQrModalVisible] = useState(false);
+
+  const favorite = isFavorite(event.id);
 
   const toggleFavorite = () => {
-    if (favorited) {
+    if (favorite) {
       removeFavorite(event.id);
     } else {
       addFavorite(event);
     }
   };
 
+  // Etkinlik Bilgileri
   const imageUrl = event.images && event.images.length > 0 ? event.images[0].url : null;
-  const eventDate = event.dates?.start?.localDate || 'N/A';
+  const eventName = event.name || 'Untitled Event';
+  const eventDate = event.dates?.start?.localDate || 'TBA';
   const eventTime = event.dates?.start?.localTime || '';
   const venue = event._embedded?.venues?.[0];
   const venueName = venue?.name || 'Unknown Venue';
-  const venueAddress = venue?.address?.line1 || 'Address not available';
-  const venueCity = venue?.city?.name || '';
-  const priceRange = event.priceRanges?.[0]
-    ? `${event.priceRanges[0].min} - ${event.priceRanges[0].max} ${event.priceRanges[0].currency}`
-    : 'Price info unavailable';
+  const cityName = venue?.city?.name || '';
+  const countryName = venue?.country?.name || '';
+
+  // --- TAKVİME EKLEME FONKSİYONU (Expo Calendar) ---
+  const handleAddToCalendar = async () => {
+    try {
+      const { status } = await Calendar.requestCalendarPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Calendar permission is required to save events.');
+        return;
+      }
+
+      const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+      const defaultCalendar =
+        calendars.find((cal) => cal.isPrimary) || calendars[0];
+
+      if (!defaultCalendar) {
+        Alert.alert('Error', 'No calendar found on device.');
+        return;
+      }
+
+      const startDate = new Date(`${eventDate}T${eventTime || '10:00:00'}`);
+      const endDate = new Date(startDate.getTime() + 2 * 60 * 60 * 1000); // 2 saatlik etkinlik
+
+      await Calendar.createEventAsync(defaultCalendar.id, {
+        title: eventName,
+        startDate: startDate,
+        endDate: endDate,
+        location: `${venueName}, ${cityName}`,
+        notes: 'Added from EventExplorer App',
+      });
+
+      Alert.alert('Success 🎉', 'Event successfully added to your device calendar!');
+    } catch (error) {
+      console.error('Calendar error:', error);
+      Alert.alert('Error', 'Could not add event to calendar.');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
         
-        {/* Top Image Card: Rounded Corners with Margins */}
-        <View style={styles.imageWrapper}>
+        {/* Üst Görsel ve Favori Butonu */}
+        <View style={styles.imageContainer}>
           {imageUrl ? (
             <Image source={{ uri: imageUrl }} style={styles.image} />
           ) : (
             <View style={[styles.image, styles.noImage]}>
-              <Text style={styles.noImageText}>No Image Available</Text>
+              <Ionicons name="image-outline" size={48} color={THEME.white} />
             </View>
           )}
 
-          {/* Back Button */}
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={22} color={THEME.primary} />
+          {/* Geri Butonu */}
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={20} color={THEME.primary} />
           </TouchableOpacity>
 
-          {/* Favorite Button */}
+          {/* Favori Butonu */}
           <TouchableOpacity style={styles.favoriteButton} onPress={toggleFavorite}>
             <Ionicons
-              name={favorited ? 'heart' : 'heart-outline'}
-              size={24}
-              color={favorited ? '#e74c3c' : THEME.primary}
+              name={favorite ? 'heart' : 'heart-outline'}
+              size={22}
+              color={favorite ? '#E74C3C' : THEME.primary}
             />
           </TouchableOpacity>
         </View>
 
-        {/* Details Content */}
-        <View style={styles.content}>
-          <Text style={styles.title}>{event.name}</Text>
+        {/* Detay Bilgileri Kartı */}
+        <View style={styles.contentCard}>
+          <Text style={styles.title}>{eventName}</Text>
 
-          {/* Date & Time */}
+          {/* Tarih & Saat */}
           <View style={styles.infoRow}>
-            <Ionicons name="time-outline" size={20} color={THEME.accent} />
-            <Text style={styles.infoText}>
-              {eventDate} {eventTime ? `at ${eventTime}` : ''}
-            </Text>
-          </View>
-
-          {/* Ticket Price */}
-          <View style={styles.infoRow}>
-            <Ionicons name="ticket-outline" size={20} color={THEME.accent} />
-            <Text style={styles.infoText}>{priceRange}</Text>
-          </View>
-
-          {/* Venue Card */}
-          <View style={styles.venueCard}>
-            <View style={styles.venueHeader}>
-              <Ionicons name="location" size={22} color={THEME.primary} />
-              <Text style={styles.venueTitle}>{venueName}</Text>
+            <View style={styles.iconCircle}>
+              <Ionicons name="calendar-outline" size={18} color={THEME.primary} />
             </View>
-            <Text style={styles.venueAddress}>
-              {venueAddress} {venueCity ? `, ${venueCity}` : ''}
-            </Text>
-          </View>
-
-          {/* Classification Badge */}
-          {event.classifications?.[0] && (
-            <View style={styles.genreBadge}>
-              <Text style={styles.genreText}>
-                {event.classifications[0].segment?.name} / {event.classifications[0].genre?.name}
+            <View style={styles.infoTextContainer}>
+              <Text style={styles.infoTitle}>Date & Time</Text>
+              <Text style={styles.infoDetail}>
+                {eventDate} {eventTime ? `at ${eventTime}` : ''}
               </Text>
             </View>
-          )}
+          </View>
+
+          {/* Mekan */}
+          <View style={styles.infoRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="location-outline" size={18} color={THEME.primary} />
+            </View>
+            <View style={styles.infoTextContainer}>
+              <Text style={styles.infoTitle}>Location</Text>
+              <Text style={styles.infoDetail}>
+                {venueName}{cityName ? `, ${cityName}` : ''}{countryName ? ` (${countryName})` : ''}
+              </Text>
+            </View>
+          </View>
+
+          {/* Müfredat Aksiyon Butonları (QR Code & Takvime Ekleme) */}
+          <View style={styles.actionButtonsContainer}>
+            {/* QR Pass Göster */}
+            <TouchableOpacity
+              style={styles.qrButton}
+              onPress={() => setQrModalVisible(true)}
+            >
+              <Ionicons name="qr-code-outline" size={18} color={THEME.white} />
+              <Text style={styles.buttonText}>QR Pass</Text>
+            </TouchableOpacity>
+
+            {/* Takvime Ekle */}
+            <TouchableOpacity
+              style={styles.calendarButton}
+              onPress={handleAddToCalendar}
+            >
+              <Ionicons name="calendar" size={18} color={THEME.white} />
+              <Text style={styles.buttonText}>Add to Calendar</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
       </ScrollView>
+
+      {/* --- QR KOD MODAL PENCERESİ --- */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={qrModalVisible}
+        onRequestClose={() => setQrModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={() => setQrModalVisible(false)}
+            >
+              <Ionicons name="close-circle" size={26} color={THEME.secondary} />
+            </TouchableOpacity>
+
+            <Text style={styles.modalTitle}>🎫 Digital Pass</Text>
+            <Text style={styles.modalSubtitle} numberOfLines={1}>
+              {eventName}
+            </Text>
+
+            {/* QR KOD BİLEŞENİ */}
+            <View style={styles.qrContainer}>
+              <QRCode
+                value={JSON.stringify({
+                  id: event.id,
+                  name: event.name,
+                  date: eventDate,
+                })}
+                size={180}
+                color={THEME.primary}
+                backgroundColor={THEME.white}
+              />
+            </View>
+
+            <Text style={styles.qrFooterText}>
+              Scan this pass at the venue entrance.
+            </Text>
+
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -129,18 +230,10 @@ const styles = StyleSheet.create({
   container: {
     paddingBottom: 30,
   },
-  imageWrapper: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    height: 230,
-    borderRadius: 20,
-    overflow: 'hidden',
+  imageContainer: {
     position: 'relative',
-    elevation: 4,
-    shadowColor: THEME.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    width: '100%',
+    height: 250,
   },
   image: {
     width: '100%',
@@ -151,34 +244,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  noImageText: {
-    color: THEME.white,
-    fontSize: 16,
-  },
   backButton: {
     position: 'absolute',
-    top: 14,
-    left: 14,
+    top: 16,
+    left: 16,
     backgroundColor: THEME.white,
-    padding: 10,
+    padding: 8,
     borderRadius: 20,
-    elevation: 5,
+    elevation: 3,
   },
   favoriteButton: {
     position: 'absolute',
-    top: 14,
-    right: 14,
+    top: 16,
+    right: 16,
     backgroundColor: THEME.white,
-    padding: 10,
+    padding: 8,
     borderRadius: 20,
-    elevation: 5,
+    elevation: 3,
   },
-  content: {
-    paddingHorizontal: 18,
-    paddingTop: 18,
+  contentCard: {
+    backgroundColor: THEME.white,
+    marginHorizontal: 16,
+    marginTop: -20,
+    borderRadius: 20,
+    padding: 20,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: THEME.accent,
   },
   title: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
     color: THEME.primary,
     marginBottom: 16,
@@ -186,49 +281,104 @@ const styles = StyleSheet.create({
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  infoText: {
-    fontSize: 15,
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: THEME.bgLightGreen,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  infoTextContainer: {
+    flex: 1,
+  },
+  infoTitle: {
+    fontSize: 12,
+    color: THEME.secondary,
+    fontWeight: '600',
+  },
+  infoDetail: {
+    fontSize: 14,
     color: THEME.textDark,
-    marginLeft: 10,
     fontWeight: '500',
   },
-  venueCard: {
-    backgroundColor: THEME.white,
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: THEME.border,
-    marginVertical: 14,
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    marginTop: 10,
   },
-  venueHeader: {
+  qrButton: {
+    flex: 1,
+    backgroundColor: THEME.accent,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 6,
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginRight: 6,
   },
-  venueTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: THEME.primary,
+  calendarButton: {
+    flex: 1,
+    backgroundColor: THEME.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
     marginLeft: 6,
   },
-  venueAddress: {
+  buttonText: {
+    color: THEME.white,
+    fontWeight: 'bold',
+    marginLeft: 6,
+    fontSize: 13,
+  },
+  // MODAL STİLLERİ
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '82%',
+    backgroundColor: THEME.white,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    elevation: 5,
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: THEME.primary,
+    marginBottom: 4,
+  },
+  modalSubtitle: {
     fontSize: 13,
     color: THEME.secondary,
-    marginLeft: 28,
+    marginBottom: 16,
+    textAlign: 'center',
   },
-  genreBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: THEME.accent,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    marginTop: 4,
+  qrContainer: {
+    padding: 16,
+    backgroundColor: THEME.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: THEME.bgLightGreen,
+    elevation: 2,
+    marginBottom: 14,
   },
-  genreText: {
-    color: THEME.white,
+  qrFooterText: {
     fontSize: 12,
-    fontWeight: 'bold',
+    color: THEME.secondary,
+    textAlign: 'center',
   },
 });
