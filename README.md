@@ -6,6 +6,17 @@ Uygulama canlı verilerini Ticketmaster Discovery API üzerinden almaktadır.
 
 ---
 
+<h3>📱 Uygulama Görselleri</h3>
+
+<p align="center">
+  <img src="./assets/screen1.png" width="22%" alt="Ana Ekran" />
+  <img src="./assets/screen2.png" width="22%" alt="Detay Ekranı" />
+  <img src="./assets/screen3.png" width="22%" alt="Harita Ekranı" />
+  <img src="./assets/screen4.png" width="22%" alt="Favoriler Ekranı" />
+</p>
+
+---
+
 <h3>📌 Özellikler</h3>
 
 - Etkinlik Listeleme ve Keşif: Güncel konser, tiyatro ve spor etkinliklerini dinamik olarak listeleme.
